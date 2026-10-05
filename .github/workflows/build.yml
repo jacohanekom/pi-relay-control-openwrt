@@ -16,14 +16,20 @@ jobs:
           # Generic sanity check -- fastest SDK image, catches anything
           # arch-independent (UCI parsing, protocol logic, the LuCI JS
           # view/rpcd script).
-          - arch: x86-64-v25.12.5
+          #
+          # Pinned to 24.10.x (not the latest stable, 25.12.x): 24.10
+          # still defaults to opkg/.ipk -- 25.12 switched to apk/.apk,
+          # which is what the real deploy target below actually runs,
+          # confirmed via config/Config-build.in@v24.10.4, where
+          # USE_APK is "depends on BROKEN" for this release.
+          - arch: x86-64-v24.10.4
             name: x86_64 (sanity check)
 
           # Matches the actual deploy target this whole pi-relay-control
           # project suite is built for: a Raspberry Pi 3/4-class
-          # (Cortex-A53) board, here running OpenWrt's bcm27xx target
+          # (Cortex-A53) board, here running OpenWrt 24.10.4 (bcm27xx)
           # instead of Debian/Alpine.
-          - arch: aarch64_cortex-a53-v25.12.5
+          - arch: aarch64_cortex-a53-v24.10.4
             name: aarch64_cortex-a53 (Pi 3/4-class)
     steps:
       - uses: actions/checkout@v4
@@ -44,12 +50,12 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: apk-${{ matrix.arch }}
-          path: bin/packages/*/action/*.apk
+          name: ipk-${{ matrix.arch }}
+          path: bin/packages/*/action/*.ipk
           if-no-files-found: error
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: bin/packages/*/action/*.apk
+          files: bin/packages/*/action/*.ipk

@@ -60,8 +60,11 @@ make package/pi-relay-control/compile V=s
 make package/luci-app-pi-relay-control/compile V=s
 ```
 
-All three `.apk`s (OpenWrt packages as `apk`, not `opkg`, as of 25.12)
-land in `bin/packages/<arch>/pi-relay-control/`.
+All three `.ipk`s land in `bin/packages/<arch>/pi-relay-control/`.
+(OpenWrt 25.12 switched the default package format to `apk`, but
+24.10 -- what CI builds against, and probably what's on your router --
+still defaults to `opkg`/`.ipk`; `USE_APK` is `depends on BROKEN` in
+24.10's `config/Config-build.in`.)
 
 ## Configuration
 
