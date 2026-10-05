@@ -1,0 +1,17 @@
+{
+	"luci-app-pi-relay-control": {
+		"description": "Grant UCI and ubus access for luci-app-pi-relay-control",
+		"read": {
+			"uci": ["pi-relay-control"],
+			"ubus": {
+				"luci.pi-relay-control": ["status"]
+			}
+		},
+		"write": {
+			"uci": ["pi-relay-control"],
+			"ubus": {
+				"luci.pi-relay-control": ["set"]
+			}
+		}
+	}
+}

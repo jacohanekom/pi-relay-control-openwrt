@@ -1,0 +1,112 @@
+#!/bin/sh
+# TechRef: https://openwrt.org/docs/techref/rpcd
+#
+# ubus -S call luci.pi-relay-control status
+# ubus -S call luci.pi-relay-control set '{"section":"cfg01", "state":"on"}'
+
+. /lib/functions.sh
+. /usr/share/libubox/jshn.sh
+
+print_bool_result() {
+	json_init
+	json_add_boolean result "$1"
+	json_dump
+	json_cleanup
+}
+
+# Queries the daemon's per-relay TCP port directly -- same protocol
+# "nc" or pi-relay-control's own TCP clients use, this script is just
+# another client on 127.0.0.1.
+relay_query() {
+	local port="$1" cmd="$2" reply
+	reply="$(printf '%s\n' "$cmd" | nc -w 2 127.0.0.1 "$port" 2>/dev/null)"
+	case "$reply" in
+		*RELAY=ON*)  echo "on" ;;
+		*RELAY=OFF*) echo "off" ;;
+		*)           echo "unknown" ;;
+	esac
+}
+
+add_relay_status() {
+	local section="$1"
+	local gpio_pin port always_on state
+
+	config_get gpio_pin "$section" gpio_pin
+	config_get port "$section" port
+	config_get_bool always_on "$section" always_on 0
+
+	if [ -n "$port" ]; then
+		state="$(relay_query "$port" status)"
+	else
+		state="unknown"
+	fi
+
+	json_add_object ""
+	json_add_string section "$section"
+	[ -n "$gpio_pin" ] && json_add_int gpio_pin "$gpio_pin"
+	[ -n "$port" ] && json_add_int port "$port"
+	json_add_boolean always_on "$always_on"
+	json_add_string state "$state"
+	json_close_object
+}
+
+rpc_status() {
+	config_load pi-relay-control
+	json_init
+	json_add_array relays
+	config_foreach add_relay_status relay
+	json_close_array
+	json_dump
+	json_cleanup
+}
+
+rpc_set() {
+	local section="$1" state="$2" port
+
+	case "$state" in
+		on|off) ;;
+		*) print_bool_result 0; return ;;
+	esac
+
+	config_load pi-relay-control
+	config_get port "$section" port
+	if [ -z "$port" ]; then
+		print_bool_result 0
+		return
+	fi
+
+	if [ "$(relay_query "$port" "$state")" = "$state" ]; then
+		print_bool_result 1
+	else
+		print_bool_result 0
+	fi
+}
+
+case "$1" in
+	list)
+		json_init
+		json_add_object status
+		json_close_object
+		json_add_object set
+			json_add_string section section
+			json_add_string state state
+		json_close_object
+		json_dump
+		json_cleanup
+		;;
+	call)
+		case "$2" in
+			status)
+				rpc_status
+				;;
+			set)
+				read -r input
+				json_load "$input"
+				json_get_var rpc_section section
+				json_get_var rpc_state state
+				json_cleanup
+				rpc_set "$rpc_section" "$rpc_state"
+				;;
+		esac
+		;;
+esac

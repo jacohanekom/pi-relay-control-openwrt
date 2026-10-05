@@ -1,0 +1,12 @@
+{
+	"admin/services/pi-relay-control": {
+		"title": "Relay Control",
+		"action": {
+			"type": "view",
+			"path": "pi-relay-control"
+		},
+		"depends": {
+			"acl": ["luci-app-pi-relay-control"]
+		}
+	}
+}
