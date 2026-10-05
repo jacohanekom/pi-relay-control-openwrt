@@ -34,9 +34,21 @@ endef
 # Only the "lib" target -- skips rgpiod/rgs (which we don't use) and
 # their man pages/docs, which need python3/swig that aren't otherwise
 # needed here.
+#
+# CC is passed explicitly rather than via CROSS_COMPILE: upstream's
+# Makefile sets "CC ?= $(CROSS_COMPILE)gcc", but CC is one of GNU
+# Make's own built-in variables (defaulting to plain "cc"), so a
+# Makefile-internal ?= can never override it -- CROSS_COMPILE alone
+# silently built with the host's native cc instead of the cross
+# compiler. An explicit command-line CC= (like TARGET_CC here) takes
+# precedence over both the built-in default and the Makefile's ?=.
 define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) lib \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
+		CC="$(TARGET_CC)" \
+		AR="$(TARGET_CROSS)ar" \
+		RANLIB="$(TARGET_CROSS)ranlib" \
+		STRIP="$(TARGET_CROSS)strip" \
+		SIZE="$(TARGET_CROSS)size" \
 		CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
 		LDFLAGS="$(TARGET_LDFLAGS)"
 endef
