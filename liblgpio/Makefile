@@ -1,16 +1,23 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=liblgpio
-PKG_VERSION:=bcccd782eceedc5b278b3056ea81d5fbbb89c489
+# PKG_VERSION must be an apk-valid version string (OpenWrt's package
+# format here), which an untagged commit hash is not -- "package
+# version is invalid" if PKG_VERSION is set to LG_COMMIT directly. The
+# actual pinned commit (same one the Alpine port's APKBUILD uses) is
+# tracked separately below and only used for the source URL/build dir.
+PKG_VERSION:=1.0
 PKG_RELEASE:=1
+
+LG_COMMIT:=bcccd782eceedc5b278b3056ea81d5fbbb89c489
 
 # lgpio isn't packaged for OpenWrt, so it's fetched and built from
 # source here, same pinned commit as the Alpine port's APKBUILD (which
 # this mirrors -- see ../pi-relay-control/Makefile).
-PKG_SOURCE:=$(PKG_VERSION).tar.gz
+PKG_SOURCE:=$(LG_COMMIT).tar.gz
 PKG_SOURCE_URL:=https://github.com/joan2937/lg/archive
 PKG_HASH:=1c1069fe27ccf3d1b2a2f45de10d7bf045206f3bcf60460278a514d4dd223999
-PKG_BUILD_DIR:=$(BUILD_DIR)/lg-$(PKG_VERSION)
+PKG_BUILD_DIR:=$(BUILD_DIR)/lg-$(LG_COMMIT)
 
 PKG_MAINTAINER:=Jaco Hanekom <jhanekom@gmail.com>
 PKG_LICENSE:=custom
