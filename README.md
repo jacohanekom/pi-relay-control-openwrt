@@ -60,7 +60,8 @@ make package/pi-relay-control/compile V=s
 make package/luci-app-pi-relay-control/compile V=s
 ```
 
-Both `.ipk`s land in `bin/packages/<arch>/pi-relay-control/`.
+All three `.apk`s (OpenWrt packages as `apk`, not `opkg`, as of 25.12)
+land in `bin/packages/<arch>/pi-relay-control/`.
 
 ## Configuration
 
