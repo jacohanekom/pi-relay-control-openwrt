@@ -66,13 +66,19 @@ return view.extend({
 				E('td', { 'class': 'td cbi-section-actions' }, [
 					E('button', {
 						'class': 'cbi-button cbi-button-positive',
-						'disabled': isUnknown || isOn,
+						// null, not false: dom.js's attr() only skips an
+						// attribute for null/undefined, so a bare `false`
+						// here would render as disabled="false" -- which
+						// HTML treats as disabled regardless of the
+						// string value, permanently disabling this
+						// button even when it should be clickable.
+						'disabled': (isUnknown || isOn) || null,
 						'click': ui.createHandlerFn(this, 'handleToggle', r.section, 'on')
 					}, _('On')),
 					' ',
 					E('button', {
 						'class': 'cbi-button cbi-button-negative',
-						'disabled': isUnknown || !isOn,
+						'disabled': (isUnknown || !isOn) || null,
 						'click': ui.createHandlerFn(this, 'handleToggle', r.section, 'off')
 					}, _('Off'))
 				])
@@ -96,6 +102,8 @@ return view.extend({
 	handleToggle: function(section, state) {
 		return callSet(section, state).then(function() {
 			location.reload();
+		}).catch(function(err) {
+			ui.addNotification(null, E('p', _('Failed to set relay state: %s').format(err.message || err)));
 		});
 	}
 });
