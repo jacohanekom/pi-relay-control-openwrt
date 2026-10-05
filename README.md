@@ -6,20 +6,22 @@ turn one or more relays on/off and query their state, with persistent
 state across restarts -- same protocol as the
 [Debian/systemd](https://github.com/jacohanekom/pi-relay-control) and
 [Alpine/OpenRC](https://github.com/jacohanekom/pi-relay-control-alpine)
-siblings. This port differs from both of those in two ways:
+siblings. The only real difference is config format: this port uses
+[UCI](https://openwrt.org/docs/guide-user/base-system/uci)
+(`/etc/config/pi-relay-control`) instead of the flat
+`/etc/pi-relay-control.conf` the other two use, so it's editable from
+LuCI and `uci`/`uci-defaults` like any other OpenWrt service.
 
-- **GPIO backend:** [libgpiod](https://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git)
-  (OpenWrt's `packages` feed ships it) instead of `liblgpio`, since lgpio
-  isn't packaged for OpenWrt and vendoring it the way the Alpine port
-  does seemed like more to maintain than switching backends.
-- **Config format:** [UCI](https://openwrt.org/docs/guide-user/base-system/uci)
-  (`/etc/config/pi-relay-control`) instead of the flat
-  `/etc/pi-relay-control.conf` the other two use, so it's editable from
-  LuCI and `uci`/`uci-defaults` like any other OpenWrt service.
+This repo holds three packages, meant to be added as a custom feed
+rather than built standalone:
 
-This repo holds two packages, meant to be added as a custom feed rather
-than built standalone:
-
+- `liblgpio` -- same `liblgpio.so.1` the Alpine port ships, built from
+  the same pinned [joan2937/lg](https://github.com/joan2937/lg) commit.
+  lgpio isn't packaged for OpenWrt (and OpenWrt's packaged alternative,
+  `libgpiod`, currently fails to build on every stable release branch --
+  an unrelated upstream Python-bindings bug, fixed on `master` but not
+  yet backported), so this vendors it from source instead, same as the
+  Alpine port already does.
 - `pi-relay-control` -- the daemon, init script, and default UCI config.
 - `luci-app-pi-relay-control` -- a LuCI page (`Services -> Relay
   Control`) that edits the UCI config and shows live on/off/status per
@@ -49,9 +51,11 @@ Then:
 ./scripts/feeds install -a -p pi-relay-control
 
 make menuconfig
+# Libraries  --->  <*> liblgpio
 # Utilities  --->  <*> pi-relay-control
 # LuCI  --->  3. Applications  --->  <*> luci-app-pi-relay-control
 
+make package/liblgpio/compile V=s
 make package/pi-relay-control/compile V=s
 make package/luci-app-pi-relay-control/compile V=s
 ```

@@ -34,7 +34,12 @@ jobs:
         uses: openwrt/gh-action-sdk@v11
         env:
           ARCH: ${{ matrix.arch }}
-          PACKAGES: pi-relay-control luci-app-pi-relay-control
+          # liblgpio must be listed explicitly even though pi-relay-control
+          # DEPENDS on it -- it lives in our own feed, not one of the SDK's
+          # baked-in default feeds, so it only gets symlinked into
+          # package/feeds/ if named here (unlike e.g. a packages-feed lib,
+          # which the SDK image already has installed).
+          PACKAGES: liblgpio pi-relay-control luci-app-pi-relay-control
           V: s
 
       - uses: actions/upload-artifact@v4

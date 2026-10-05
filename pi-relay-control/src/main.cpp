@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/gpio.h>
-#include <gpiod.h>
+#include <lgpio.h>
 #include <uci.h>
 
 const std::string UCI_PACKAGE  = "pi-relay-control";
@@ -25,10 +25,9 @@ struct Relay {
     int port;
     std::string stateFile;
     bool alwaysOn = false;
-    struct gpiod_line_request *lineRequest = nullptr;
 };
 
-struct gpiod_chip *gpioChip = nullptr;
+int gpioHandle = -1;
 std::vector<Relay> g_relays;
 
 // Optional override for the gpiochip to use, read from the "globals"
@@ -171,19 +170,28 @@ int findMainGpiochip() {
     return -1;
 }
 
-// Opens the shared gpiochip once and requests every configured relay's
-// pin as an output line on it.
+// Opens the shared gpiochip once and claims every configured relay's pin
+// as an output on it -- one chip handle covers all lines on the header,
+// so relays don't each need their own chip open.
 void setup() {
     system(("mkdir -p " + STATE_DIR).c_str());
 
-    std::string chipPath;
+    int chipNum;
     if (!g_gpioChipOverride.empty()) {
-        chipPath = g_gpioChipOverride.rfind("/dev/", 0) == 0
-            ? g_gpioChipOverride
-            : "/dev/gpiochip" + g_gpioChipOverride;
-        std::cout << "Using configured gpio_chip override: " << chipPath << std::endl;
+        const std::string prefix = "/dev/gpiochip";
+        std::string numPart = g_gpioChipOverride.rfind(prefix, 0) == 0
+            ? g_gpioChipOverride.substr(prefix.size())
+            : g_gpioChipOverride;
+        try {
+            chipNum = std::stoi(numPart);
+        } catch (...) {
+            std::cerr << "Invalid gpio_chip override \"" << g_gpioChipOverride
+                      << "\", falling back to gpiochip0" << std::endl;
+            chipNum = 0;
+        }
+        std::cout << "Using configured gpio_chip override: gpiochip" << chipNum << std::endl;
     } else {
-        int chipNum = findMainGpiochip();
+        chipNum = findMainGpiochip();
         if (chipNum < 0) {
             std::cerr << "Could not find a gpiochip labeled pinctrl-rp1 or pinctrl-bcm2835, "
                           "falling back to gpiochip0 -- on non-Raspberry-Pi hardware, set "
@@ -193,16 +201,15 @@ void setup() {
         } else {
             std::cout << "Found header gpiochip at /dev/gpiochip" << chipNum << std::endl;
         }
-        chipPath = "/dev/gpiochip" + std::to_string(chipNum);
     }
 
-    gpioChip = gpiod_chip_open(chipPath.c_str());
-    if (!gpioChip) {
-        std::cerr << "Failed to open GPIO chip " << chipPath << std::endl;
+    gpioHandle = lgGpiochipOpen(chipNum);
+    if (gpioHandle < 0) {
+        std::cerr << "Failed to open GPIO chip " << chipNum << std::endl;
         return;
     }
 
-    for (auto& relay : g_relays) {
+    for (const auto& relay : g_relays) {
         int lastState;
         if (relay.alwaysOn) {
             lastState = 1;
@@ -211,52 +218,22 @@ void setup() {
         } else {
             lastState = loadState(relay);
         }
-
-        struct gpiod_line_settings *settings = gpiod_line_settings_new();
-        gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-        gpiod_line_settings_set_output_value(settings,
-            lastState ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
-
-        struct gpiod_line_config *lineCfg = gpiod_line_config_new();
-        unsigned int offset = static_cast<unsigned int>(relay.gpioPin);
-        gpiod_line_config_add_line_settings(lineCfg, &offset, 1, settings);
-
-        struct gpiod_request_config *reqCfg = gpiod_request_config_new();
-        gpiod_request_config_set_consumer(reqCfg, "pi-relay-control");
-
-        relay.lineRequest = gpiod_chip_request_lines(gpioChip, reqCfg, lineCfg);
-
-        gpiod_request_config_free(reqCfg);
-        gpiod_line_config_free(lineCfg);
-        gpiod_line_settings_free(settings);
-
-        if (!relay.lineRequest) {
-            std::cerr << "Failed to claim GPIO " << relay.gpioPin << " as output" << std::endl;
-            continue;
-        }
-
+        lgGpioClaimOutput(gpioHandle, 0, relay.gpioPin, lastState);
         std::cout << "GPIO " << relay.gpioPin << " ready, state="
                   << (lastState ? "ON" : "OFF") << std::endl;
     }
 }
 
 void cleanup() {
-    for (auto& relay : g_relays) {
-        if (relay.lineRequest) {
-            gpiod_line_request_set_value(relay.lineRequest,
-                static_cast<unsigned int>(relay.gpioPin), GPIOD_LINE_VALUE_INACTIVE);
-            gpiod_line_request_release(relay.lineRequest);
-        }
+    if (gpioHandle >= 0) {
+        for (const auto& relay : g_relays)
+            lgGpioWrite(gpioHandle, relay.gpioPin, 0);
+        lgGpiochipClose(gpioHandle);
     }
-    if (gpioChip) gpiod_chip_close(gpioChip);
 }
 
 void setRelay(const Relay& relay, int state) {
-    if (relay.lineRequest) {
-        gpiod_line_request_set_value(relay.lineRequest,
-            static_cast<unsigned int>(relay.gpioPin),
-            state ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
-    }
+    lgGpioWrite(gpioHandle, relay.gpioPin, state);
     saveState(relay, state);
 }
 
@@ -282,9 +259,7 @@ void handleClient(int clientFd, const Relay& relay) {
         response = "OK RELAY=OFF\n";
 
     } else if (cmd == "status") {
-        int val = (relay.lineRequest &&
-                   gpiod_line_request_get_value(relay.lineRequest,
-                       static_cast<unsigned int>(relay.gpioPin)) == GPIOD_LINE_VALUE_ACTIVE) ? 1 : 0;
+        int val = lgGpioRead(gpioHandle, relay.gpioPin);
         response = "RELAY=" + std::string(val ? "ON" : "OFF") + "\n";
 
     } else {

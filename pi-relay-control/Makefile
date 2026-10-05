@@ -14,11 +14,11 @@ define Package/pi-relay-control
   CATEGORY:=Utilities
   TITLE:=GPIO relay control daemon
   URL:=https://github.com/jacohanekom/pi-relay-control-openwrt
-  DEPENDS:=+libgpiod +libuci +libstdcpp +libpthread
+  DEPENDS:=+liblgpio +libuci +libstdcpp +libpthread
 endef
 
 define Package/pi-relay-control/description
-  Controls one or more relays via GPIO (through libgpiod) with a TCP
+  Controls one or more relays via GPIO (through liblgpio) with a TCP
   socket interface and state persistence. Restores each relay's last
   known state on startup, or forces it ON at every startup via the
   always_on UCI option. Relays, GPIO pins, and ports are configured in
@@ -34,7 +34,7 @@ define Build/Compile
 	$(TARGET_CXX) $(TARGET_CXXFLAGS) -std=c++17 -Wall -O2 -pthread \
 		$(TARGET_CPPFLAGS) \
 		-o $(PKG_BUILD_DIR)/relay_control $(PKG_BUILD_DIR)/main.cpp \
-		$(TARGET_LDFLAGS) -lgpiod -luci
+		$(TARGET_LDFLAGS) -llgpio -luci
 endef
 
 define Package/pi-relay-control/conffiles
