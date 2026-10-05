@@ -42,6 +42,15 @@ endef
 # silently built with the host's native cc instead of the cross
 # compiler. An explicit command-line CC= (like TARGET_CC here) takes
 # precedence over both the built-in default and the Makefile's ?=.
+#
+# Flags go through CPPFLAGS, not CFLAGS: upstream's Makefile builds
+# CFLAGS itself via "CFLAGS += -O3 -Wall -pthread -fpic $(CPPFLAGS)",
+# which only *appends* -fpic (required to link a shared object) --
+# but a plain += in the Makefile is silently dropped entirely once
+# CFLAGS has been set on the command line (only an explicit `override`
+# directive in the Makefile could change it back, and this Makefile
+# has none), losing -fpic along with it. Setting CPPFLAGS instead
+# leaves that += line, and its -fpic, intact.
 define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) lib \
 		CC="$(TARGET_CC)" \
@@ -49,7 +58,7 @@ define Build/Compile
 		RANLIB="$(TARGET_CROSS)ranlib" \
 		STRIP="$(TARGET_CROSS)strip" \
 		SIZE="$(TARGET_CROSS)size" \
-		CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
+		CPPFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
 		LDFLAGS="$(TARGET_LDFLAGS)"
 endef
 
