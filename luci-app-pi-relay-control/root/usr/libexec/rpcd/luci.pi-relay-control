@@ -17,9 +17,16 @@ print_bool_result() {
 # Queries the daemon's per-relay TCP port directly -- same protocol
 # "nc" or pi-relay-control's own TCP clients use, this script is just
 # another client on 127.0.0.1.
+#
+# No -w timeout: that flag needs BusyBox's NC_EXTRA config, which
+# defaults to off in stock OpenWrt builds (confirmed against 24.10.4's
+# Config-defaults.in) -- using it silently no-ops nc on an unmodified
+# router image instead of failing loudly, since stderr is discarded
+# below. relay_control always responds and closes immediately, so a
+# bare connection is safe without one.
 relay_query() {
 	local port="$1" cmd="$2" reply
-	reply="$(printf '%s\n' "$cmd" | nc -w 2 127.0.0.1 "$port" 2>/dev/null)"
+	reply="$(printf '%s\n' "$cmd" | nc 127.0.0.1 "$port" 2>/dev/null)"
 	case "$reply" in
 		*RELAY=ON*)  echo "on" ;;
 		*RELAY=OFF*) echo "off" ;;
